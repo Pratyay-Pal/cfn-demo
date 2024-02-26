@@ -15,7 +15,7 @@ Resources:
           !Sub |
             #!/bin/bash -xe
             yum update -y aws-cfn-bootstrap
-            /opt/aws/bin/cfn-init -s ${AWS::StackId} -r cfnDemoEc2 --region ${AWS::Region} || error_exit 'Failed to run cfn-init'
+            /opt/aws/bin/cfn-init -s ${AWS::StackId} -r cfnDemoEc2 --region ${AWS::Region}
     Metadata:
       Comment: Install httpd with cfn init
       AWS::CloudFormation::Init:
