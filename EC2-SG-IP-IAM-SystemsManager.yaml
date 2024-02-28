@@ -1,0 +1,120 @@
+### Creates a VPC, Subnet in us-east-1a and a security group allowing SSH. 
+### Creates an EC2 instance in the VPC and subnet, attaches Security Group to it
+### Creates an Elastic IP and attaches it to the EC2 Instance
+### Creates and Internet Gateway and attaches it to the VPC
+
+Resources:
+  # EC2 Creation
+  cfnDemoEc2:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t2.micro
+      SubnetId: !Ref cfnDemoSubnet
+      ImageId: ami-0440d3b780d96b29d
+      IamInstanceProfile: !Ref cfnDemoIAMInstanceProfile
+      Tags:
+        - Key: name
+          Value: cfnDemoEc2
+        - Key: Env
+          Value: Dev
+      SecurityGroupIds:
+        - !GetAtt cfnDemoSecurityGroup.GroupId
+
+  # VPC Creation
+  cfnDemoVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      Tags:
+        - Key: Name
+          Value: cfnDemoVPC
+        - Key: Env
+          Value: Dev
+
+  # Subnet Creation
+  cfnDemoSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: us-east-1a
+      VpcId: !Ref cfnDemoVPC
+      CidrBlock: 10.0.0.1/24
+      Tags:
+        - Key: name
+          Value: cfnDemoSubnet
+        - Key: Env
+          Value: Dev
+
+  # Security Group Creation
+  cfnDemoSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref cfnDemoVPC
+      GroupDescription: Enable SSH access via port 22
+      Tags:
+        - Key: name
+          Value: cfnDemoSecurityGroup
+        - Key: Env
+          Value: Dev
+      SecurityGroupIngress:
+      - CidrIp: 0.0.0.0/0
+        FromPort: 22
+        IpProtocol: tcp
+        ToPort: 22
+  
+  # Elastic IP Creation
+  cfnDemoElasticIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      InstanceId: !Ref cfnDemoEc2
+  
+  # Internet Gateway Creation. This has to be created otherwise the Elastic IP creation fails
+  cfnDemoInternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags: 
+        - Key: name
+          Value: cfnDemoInternetGateway
+
+  # There is no direct way to attach VPC and IGW. Instead there is a separate function that does this by using both IDs
+  cfnDemoInternetGatewayAttachToVPN:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref cfnDemoInternetGateway
+      VpcId: !Ref cfnDemoVPC
+
+  cfnDemoRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: EC2-SSM-Role
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service: 'ec2.amazonaws.com'
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+
+  cfnDemoPolicy:
+    Type: 'AWS::IAM::Policy'
+    Properties:
+      PolicyName: cfnDemoPolicy
+      PolicyDocument:
+        Statement:
+          - Effect: 'Allow'
+            Action:
+              - 'ec2:DescribeInstances'
+              - 'ec2:StartInstances'
+              - 'ec2:StopInstances'
+              - 'ssm:SendCommand'
+              - 'ssm:GetCommandInvocation'
+            Resource: '*'
+      Roles:
+        - !Ref cfnDemoRole
+
+  cfnDemoIAMInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: EC2-SSM-InstanceProfile
+      Roles: 
+        - !Ref cfnDemoRole
